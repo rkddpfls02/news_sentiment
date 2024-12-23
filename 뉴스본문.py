@@ -7,15 +7,14 @@ from openpyxl import Workbook, load_workbook
 url = "https://tools.kinds.or.kr/search/news"
 
 def preprocess_title(title):
-    # [단독], (종합) 등 제거 및 특수문자 처리
+    # [단독], (종합) 등 제거 및 특수문자 및 한자 처리
     title = re.sub(r'\[.*?\]', '', title)  # [ ] 내용 제거
     title = re.sub(r'\(.*?\)', '', title)  # ( ) 내용 제거
-    title = title.replace("'", "").strip()  # 특수문자 제거
-    title = title.replace('"', "").strip()
-    title = title.replace('‘', "").strip()
-    title = title.replace('’', "").strip()
-    title = title.replace('“', "").strip()
-    title = title.replace('”', "").strip()
+    title = re.sub(r'[\u4e00-\u9fff]', '', title)  # 한자 제거
+    title = re.sub(r'[\"\'‘’“”…···]', '', title)  # 특수문자 제거 ("'… 포함)
+    title = re.sub(r'[\,\;\:\!\?]', '', title)  # 쉼표 등 제거
+
+    title = title.strip()
     return title
 
 def get_news_content_by_title(title):
@@ -55,39 +54,27 @@ def get_news_content_by_title(title):
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
-def process_and_save_data_row_by_row():
-    # 입력 파일 읽기
-    input_file = "C:\\Users\\강예린\\Downloads\\sentiment_analysis_output.xlsx"
+def retry_no_matching_articles():
+    # 기존 데이터 로드
     output_file = "C:\\Users\\강예린\\본문.xlsx"
-    
-    # 입력 데이터프레임 읽기
-    df = pd.read_excel(input_file)
-    
-    # 결과 엑셀 파일 초기화 (처음 실행 시)
-    try:
-        workbook = load_workbook(output_file)
-    except FileNotFoundError:
-        workbook = Workbook()
-        sheet = workbook.active
-        sheet.append(["Title", "Content"])  # 헤더 추가
-        workbook.save(output_file)
-    
-    # 기존 파일 불러오기
     workbook = load_workbook(output_file)
     sheet = workbook.active
 
-    # 데이터 처리 및 저장
-    for index, row in df.iterrows():
-        title = row["Title"]
-        preprocessed_title = preprocess_title(title)
-        content = get_news_content_by_title(preprocessed_title)
-        
-        # 결과를 바로 엑셀에 추가
-        sheet.append([title, content])
-        workbook.save(output_file)  # 행 단위로 저장
-        print(f"Saved: {title} {index}")
+    # 행 데이터 읽기
+    rows = list(sheet.iter_rows(values_only=True))
+    header = rows[0]
+    data = rows[1:]
 
-    print(f"모든 데이터를 처리하고 {output_file}에 저장 완료")
+    for row_idx, row in enumerate(data, start=2):  # start=2 to account for header
+        title, content = row
+        if content == "No matching news article found.":
+            preprocessed_title = preprocess_title(title)
+            new_content = get_news_content_by_title(preprocessed_title)
+            sheet.cell(row=row_idx, column=2, value=new_content)  # Update content column
+            workbook.save(output_file)
+            print(f"Updated: {preprocess_title(title)} {new_content}")
+
+    print(f"No matching articles 처리 완료")
 
 # 실행
-process_and_save_data_row_by_row()
+retry_no_matching_articles()
