@@ -1,7 +1,6 @@
 import requests
 import re
-import pandas as pd
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 
 # API endpoint for news content retrieval
 url = "https://tools.kinds.or.kr/search/news"
@@ -20,7 +19,7 @@ def preprocess_title(title):
 def get_news_content_by_title(title):
     # Replace with your actual access key
     access_key = "e8cf85e5-a3ce-467e-8187-96183dbe6bf7"
-    
+
     # Request payload
     payload = {
         "access_key": access_key,
@@ -34,12 +33,12 @@ def get_news_content_by_title(title):
             "return_size": 1  # Limit to the first result
         }
     }
-    
+
     try:
         # Make the POST request
         response = requests.post(url, json=payload)
         response.raise_for_status()
-        
+
         # Parse response
         data = response.json()
         if data["result"] == 0 and "documents" in data["return_object"]:
@@ -67,7 +66,7 @@ def retry_no_matching_articles():
 
     for row_idx, row in enumerate(data, start=2):  # start=2 to account for header
         title, content = row
-        if content == "No matching news article found.":
+        if content == "No matching news article found." and "···" in title:
             preprocessed_title = preprocess_title(title)
             new_content = get_news_content_by_title(preprocessed_title)
             sheet.cell(row=row_idx, column=2, value=new_content)  # Update content column
